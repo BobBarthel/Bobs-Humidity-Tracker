@@ -2,6 +2,9 @@
 
 Software for using Sensirion demoboards (SHT31 and SHT4x) on Mac and PC and logging their data.
 
+<img width="1012" height="732" alt="Screenshot 2026-01-12 at 16 42 27" src="https://github.com/user-attachments/assets/f80d20f2-55cf-4bf6-8d74-95037c2b42b4" />
+
+
 ## BLE service reference
 
 The BLE Service definition used by this project is based on:
