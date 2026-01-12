@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bob's Humidity Tracker</title>
+    <style>
+      :root {
+        --bg: #0e1522;
+        --panel: #131c2c;
+        --panel-2: #101827;
+        --text: #e6eef7;
+        --muted: #93a4ba;
+        --accent: #4aa3ff;
+        --accent-soft: rgba(74, 163, 255, 0.12);
+        --accent-soft-2: rgba(74, 163, 255, 0.08);
+        --accent-border: rgba(74, 163, 255, 0.35);
+        --accent-border-strong: rgba(74, 163, 255, 0.6);
+        --border: rgba(255, 255, 255, 0.08);
+        --shadow: 0 14px 34px rgba(2, 8, 20, 0.45);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        overflow: hidden;
+      }
+
+      .app {
+        height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+
+      .titlebar {
+        -webkit-app-region: drag;
+        height: 80px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 18px 18px 0;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel-2);
+      }
+
+      .titlebar-left {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .title {
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      .status {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--text);
+        padding: 10px 18px;
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: border-color 0.15s ease, background 0.15s ease,
+          opacity 0.15s ease;
+      }
+
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+
+      .btn:hover:not(:disabled) {
+        border-color: var(--accent-border);
+        background: var(--accent-soft-2);
+      }
+
+      .btn.secondary {
+        background: transparent;
+        color: var(--muted);
+      }
+
+      .btn.secondary:hover:not(:disabled) {
+        color: var(--text);
+        background: var(--accent-soft-2);
+      }
+
+      .btn.small {
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+      }
+
+      .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        font-weight: 600;
+        cursor: pointer;
+        -webkit-app-region: no-drag;
+      }
+
+      .toggle input {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--accent);
+      }
+
+      .toggle.active {
+        color: var(--text);
+        border-color: var(--accent-border);
+        background: var(--accent-soft-2);
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 18px 20px;
+      }
+
+      .card h3 {
+        margin: 0;
+        font-size: 12px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .reading {
+        margin-top: 10px;
+        font-size: 28px;
+        font-weight: 700;
+        transition: color 0.4s ease;
+      }
+
+      .table-panel {
+        background: var(--panel);
+        border-radius: 18px;
+        border: 1px solid var(--border);
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        flex: 1;
+        min-height: 0;
+      }
+
+      .table-wrap {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        border-radius: 12px;
+      }
+
+      .autosave-path {
+        font-size: 12px;
+        color: var(--muted);
+        word-break: break-all;
+      }
+
+      .content {
+        padding: 12px 12px 32px;
+        display: grid;
+        gap: 20px;
+        grid-template-rows: auto 1fr;
+        min-height: 0;
+      }
+
+      .view {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        min-height: 0;
+        flex: 1;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 10px;
+      }
+
+      .tab-btn {
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: border-color 0.15s ease, background 0.15s ease,
+          color 0.15s ease;
+      }
+
+      .tab-btn:hover {
+        border-color: var(--accent-border);
+        color: var(--text);
+        background: var(--accent-soft);
+      }
+
+      .tab-btn.active {
+        color: var(--text);
+        border-color: var(--accent-border-strong);
+        background: var(--accent-soft);
+      }
+
+      .device-list {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: 0;
+      }
+
+      .device-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .device-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      .device-table th,
+      .device-table td {
+        padding: 10px 8px;
+        text-align: left;
+      }
+
+      .device-list .table-wrap {
+        flex: 1;
+        min-height: 0;
+      }
+
+      .device-empty {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .settings {
+        display: grid;
+        gap: 16px;
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+      }
+
+      .settings-section {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 16px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .settings-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 16px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+
+      label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      input,
+      select {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 10px;
+        color: var(--text);
+        font-size: 14px;
+      }
+
+      .settings-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      thead {
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 11px;
+      }
+
+      th,
+      td {
+        padding: 10px 8px;
+        text-align: center;
+      }
+
+      tbody tr {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      }
+
+      tbody tr:last-child {
+        border-bottom: none;
+      }
+
+      .hint {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      @media (max-width: 880px) {
+        .cards {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="titlebar">
+        <div class="titlebar-left">
+          <div class="title">Bob's Humidity Tracker</div>
+          <div class="status" id="statusText">Idle.</div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="header">
+          <div class="tabs">
+            <button class="tab-btn active" id="dashboardTab">Dashboard</button>
+            <button class="tab-btn" id="settingsTab">Settings</button>
+            <button class="tab-btn" id="devicesTab">Devices</button>
+          </div>
+          <div class="controls">
+            <button class="btn" id="connectBtn">Connect</button>
+            <button class="btn secondary" id="resetBtn">Reset</button>
+            <label class="toggle" id="autosaveToggle">
+              <input type="checkbox" id="autosaveCheckbox" />
+              Autosave CSV
+            </label>
+          </div>
+        </div>
+
+        <div class="view" id="dashboardView">
+          <div class="cards">
+            <div class="card">
+              <h3>Humidity</h3>
+              <div class="reading" id="humidityValue">--</div>
+            </div>
+            <div class="card">
+              <h3>Temperature</h3>
+              <div class="reading" id="temperatureValue">--</div>
+            </div>
+            <div class="card">
+              <h3>Battery</h3>
+              <div class="reading" id="batteryValue">--</div>
+            </div>
+          </div>
+
+          <div class="table-panel">
+            <div class="hint" id="tableHint">
+              No samples yet. Connect to start logging.
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Humidity</th>
+                    <th>Temp</th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+              </table>
+            </div>
+            <div class="autosave-path" id="autosavePath"></div>
+          </div>
+        </div>
+
+        <div class="view" id="settingsView" style="display: none">
+          <div class="settings">
+            <div class="settings-section">
+              <div class="settings-grid">
+                <div class="field">
+                  <label for="deviceName">Device name</label>
+                  <input id="deviceName" type="text" />
+                </div>
+                <div class="field">
+                  <label for="themeSelect">Theme</label>
+                  <select id="themeSelect">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                    <option value="midnight">Midnight Blue</option>
+                    <option value="slate">Slate</option>
+                    <option value="ember">Ember</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="humidityService">Humidity service UUID</label>
+                  <input id="humidityService" type="text" />
+                </div>
+                <div class="field">
+                  <label for="temperatureService"
+                    >Temperature service UUID</label
+                  >
+                  <input id="temperatureService" type="text" />
+                </div>
+                <div class="field">
+                  <label for="batteryService">Battery service UUID</label>
+                  <input id="batteryService" type="text" />
+                </div>
+                <div class="field">
+                  <label for="humidityChar">Humidity char UUID</label>
+                  <input id="humidityChar" type="text" />
+                </div>
+                <div class="field">
+                  <label for="temperatureChar">Temperature char UUID</label>
+                  <input id="temperatureChar" type="text" />
+                </div>
+                <div class="field">
+                  <label for="batteryChar">Battery char UUID</label>
+                  <input id="batteryChar" type="text" />
+                </div>
+                <div class="field">
+                  <label for="scanTimeout">Scan timeout (sec)</label>
+                  <input id="scanTimeout" type="number" step="0.1" min="1" />
+                </div>
+                <div class="field">
+                  <label for="reconnectDelay">Reconnect delay (sec)</label>
+                  <input id="reconnectDelay" type="number" step="0.1" min="0" />
+                </div>
+                <div class="field">
+                  <label for="debounceSec">Debounce (sec)</label>
+                  <input id="debounceSec" type="number" step="0.05" min="0" />
+                </div>
+                <div class="field">
+                  <label for="tableMaxRows">Table max rows</label>
+                  <input id="tableMaxRows" type="number" min="50" />
+                </div>
+              </div>
+            </div>
+            <div class="settings-actions">
+              <button class="btn secondary" id="settingsResetBtn">
+                Reset View
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="view" id="devicesView" style="display: none">
+          <div class="device-list">
+            <div class="device-actions">
+              <button class="btn" id="scanBtn">Scan for Devices</button>
+              <div class="device-empty" id="devicesHint">
+                No scans yet. Click scan to list nearby BLE devices.
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="device-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Address</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="devicesBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const statusText = document.getElementById("statusText");
+      const connectBtn = document.getElementById("connectBtn");
+      const resetBtn = document.getElementById("resetBtn");
+      const autosaveToggle = document.getElementById("autosaveToggle");
+      const autosaveCheckbox = document.getElementById("autosaveCheckbox");
+      const dashboardTab = document.getElementById("dashboardTab");
+      const settingsTab = document.getElementById("settingsTab");
+      const devicesTab = document.getElementById("devicesTab");
+      const dashboardView = document.getElementById("dashboardView");
+      const settingsView = document.getElementById("settingsView");
+      const devicesView = document.getElementById("devicesView");
+      const humidityValue = document.getElementById("humidityValue");
+      const temperatureValue = document.getElementById("temperatureValue");
+      const batteryValue = document.getElementById("batteryValue");
+      const tableBody = document.getElementById("tableBody");
+      const tableHint = document.getElementById("tableHint");
+      const autosavePath = document.getElementById("autosavePath");
+      const deviceNameInput = document.getElementById("deviceName");
+      const themeSelect = document.getElementById("themeSelect");
+      const humidityServiceInput = document.getElementById("humidityService");
+      const temperatureServiceInput =
+        document.getElementById("temperatureService");
+      const batteryServiceInput = document.getElementById("batteryService");
+      const humidityCharInput = document.getElementById("humidityChar");
+      const temperatureCharInput = document.getElementById("temperatureChar");
+      const batteryCharInput = document.getElementById("batteryChar");
+      const scanTimeoutInput = document.getElementById("scanTimeout");
+      const reconnectDelayInput = document.getElementById("reconnectDelay");
+      const debounceSecInput = document.getElementById("debounceSec");
+      const tableMaxRowsInput = document.getElementById("tableMaxRows");
+      const settingsResetBtn = document.getElementById("settingsResetBtn");
+      const scanBtn = document.getElementById("scanBtn");
+      const devicesBody = document.getElementById("devicesBody");
+      const devicesHint = document.getElementById("devicesHint");
+      let isScanning = false;
+      let tableMaxRows = 200;
+      const DEFAULTS = {
+        device_name: "SHT40 Gadget",
+        humidity_service_uuid: "00001234-b38d-4985-720e-0f993a68ee41",
+        humidity_char_uuid: "00001235-b38d-4985-720e-0f993a68ee41",
+        temperature_service_uuid: "00002234-b38d-4985-720e-0f993a68ee41",
+        temperature_char_uuid: "00002235-b38d-4985-720e-0f993a68ee41",
+        battery_service_uuid: "0000180f-0000-1000-8000-00805f9b34fb",
+        battery_char_uuid: "00002a19-0000-1000-8000-00805f9b34fb",
+        scan_timeout: 30,
+        reconnect_delay: 3,
+        debounce_sec: 0.2,
+        table_max_rows: 200,
+        theme: "light",
+      };
+
+      function setStatus(message) {
+        statusText.textContent = message;
+      }
+
+      function setTableHint(message) {
+        tableHint.textContent = message;
+      }
+
+      function setConnectionState(state) {
+        if (state === "connected") {
+          connectBtn.textContent = "Disconnect";
+          connectBtn.disabled = false;
+        } else if (state === "connecting") {
+          connectBtn.textContent = "Connecting...";
+          connectBtn.disabled = true;
+        } else {
+          connectBtn.textContent = "Connect";
+          connectBtn.disabled = false;
+        }
+      }
+
+      function setAutosaveState(enabled) {
+        autosaveCheckbox.checked = Boolean(enabled);
+        if (autosaveCheckbox.checked) {
+          autosaveToggle.classList.add("active");
+        } else {
+          autosaveToggle.classList.remove("active");
+        }
+      }
+
+      function setAutosavePath(path) {
+        autosavePath.textContent = path ? `Autosave: ${path}` : "";
+      }
+
+      function setTab(tab) {
+        if (tab === "settings") {
+          dashboardView.style.display = "none";
+          settingsView.style.display = "flex";
+          devicesView.style.display = "none";
+          dashboardTab.classList.remove("active");
+          settingsTab.classList.add("active");
+          devicesTab.classList.remove("active");
+        } else if (tab === "devices") {
+          dashboardView.style.display = "none";
+          settingsView.style.display = "none";
+          devicesView.style.display = "flex";
+          dashboardTab.classList.remove("active");
+          settingsTab.classList.remove("active");
+          devicesTab.classList.add("active");
+        } else {
+          dashboardView.style.display = "flex";
+          settingsView.style.display = "none";
+          devicesView.style.display = "none";
+          dashboardTab.classList.add("active");
+          settingsTab.classList.remove("active");
+          devicesTab.classList.remove("active");
+        }
+      }
+
+      function valueOrDash(value, suffix, decimals) {
+        if (value === null || value === undefined || Number.isNaN(value)) {
+          return "--";
+        }
+        const fixed =
+          decimals === 0 ? Math.round(value) : value.toFixed(decimals);
+        return `${fixed}${suffix}`;
+      }
+
+      function clamp(v, min, max) {
+        return Math.max(min, Math.min(max, v));
+      }
+
+      function lerp(a, b, t) {
+        return a + (b - a) * t;
+      }
+
+      function hexToRgb(hex) {
+        const value = hex.replace("#", "");
+        return {
+          r: parseInt(value.slice(0, 2), 16),
+          g: parseInt(value.slice(2, 4), 16),
+          b: parseInt(value.slice(4, 6), 16),
+        };
+      }
+
+      function rgbToHex({ r, g, b }) {
+        const toHex = (v) => v.toString(16).padStart(2, "0");
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+      }
+
+      function blend(c1, c2, t) {
+        const a = hexToRgb(c1);
+        const b = hexToRgb(c2);
+        return rgbToHex({
+          r: Math.round(lerp(a.r, b.r, t)),
+          g: Math.round(lerp(a.g, b.g, t)),
+          b: Math.round(lerp(a.b, b.b, t)),
+        });
+      }
+
+      function humidityColor(value) {
+        if (value === null || value === undefined || Number.isNaN(value)) {
+          return "#93a4ba";
+        }
+        if (value <= 30) {
+          const t = clamp(value / 30, 0, 1);
+          return blend("#d7b46a", "#63d0a4", t);
+        }
+        if (value <= 60) {
+          const t = clamp((value - 30) / 30, 0, 1);
+          return blend("#63d0a4", "#4aa3ff", t);
+        }
+        const t = clamp((value - 60) / 40, 0, 1);
+        return blend("#4aa3ff", "#2b7bd1", t);
+      }
+
+      function temperatureColor(value) {
+        if (value === null || value === undefined || Number.isNaN(value)) {
+          return "#93a4ba";
+        }
+        if (value <= 18) {
+          const t = clamp((value + 5) / 23, 0, 1);
+          return blend("#2f6bdc", "#5aa0ff", t);
+        }
+        if (value <= 26) {
+          const t = clamp((value - 18) / 8, 0, 1);
+          return blend("#5aa0ff", "#5dd39e", t);
+        }
+        const t = clamp((value - 26) / 12, 0, 1);
+        return blend("#5dd39e", "#ff7a5a", t);
+      }
+
+      function batteryColor(value) {
+        if (value === null || value === undefined || Number.isNaN(value)) {
+          return "#93a4ba";
+        }
+        if (value <= 20) {
+          const t = clamp(value / 20, 0, 1);
+          return blend("#ff6b6b", "#f5c26b", t);
+        }
+        if (value <= 60) {
+          const t = clamp((value - 20) / 40, 0, 1);
+          return blend("#f5c26b", "#63d0a4", t);
+        }
+        const t = clamp((value - 60) / 40, 0, 1);
+        return blend("#63d0a4", "#3aa97a", t);
+      }
+
+      function updateReadings(humidity, temperature, battery) {
+        humidityValue.textContent = valueOrDash(humidity, "%", 2);
+        temperatureValue.textContent = valueOrDash(temperature, " °C", 2);
+        batteryValue.textContent = valueOrDash(battery, "%", 0);
+        humidityValue.style.color = humidityColor(humidity);
+        temperatureValue.style.color = temperatureColor(temperature);
+        batteryValue.style.color = batteryColor(battery);
+      }
+
+      function addRow(time, humidity, temperature) {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${time}</td>
+          <td>${valueOrDash(humidity, "%", 2)}</td>
+          <td>${valueOrDash(temperature, " °C", 2)}</td>
+        `;
+        tableBody.prepend(row);
+        while (tableBody.children.length > tableMaxRows) {
+          tableBody.removeChild(tableBody.lastChild);
+        }
+      }
+
+      function resetTable() {
+        tableBody.innerHTML = "";
+        setTableHint("No samples yet. Connect to start logging.");
+        updateReadings(null, null, null);
+      }
+
+      connectBtn.addEventListener("click", () => {
+        if (window.pywebview && window.pywebview.api) {
+          setConnectionState("connecting");
+          window.pywebview.api.toggle_connect();
+        }
+      });
+
+      resetBtn.addEventListener("click", () => {
+        resetTable();
+        if (window.pywebview && window.pywebview.api) {
+          window.pywebview.api.reset_data();
+        }
+      });
+
+      autosaveCheckbox.addEventListener("change", async (event) => {
+        if (!window.pywebview || !window.pywebview.api) {
+          setAutosaveState(false);
+          setAutosavePath("");
+          return;
+        }
+        const enabled = event.target.checked;
+        const result = await window.pywebview.api.set_autosave(enabled);
+        if (!result || !result.ok || !enabled) {
+          setAutosaveState(false);
+          setAutosavePath("");
+        } else {
+          setAutosaveState(true);
+          setAutosavePath(result.path || "");
+        }
+        if (result && result.message) {
+          setStatus(result.message);
+        }
+      });
+
+      dashboardTab.addEventListener("click", () => setTab("dashboard"));
+      settingsTab.addEventListener("click", () => setTab("settings"));
+      devicesTab.addEventListener("click", () => setTab("devices"));
+
+      settingsResetBtn.addEventListener("click", async () => {
+        deviceNameInput.value = DEFAULTS.device_name;
+        themeSelect.value = DEFAULTS.theme;
+        humidityServiceInput.value = DEFAULTS.humidity_service_uuid;
+        humidityCharInput.value = DEFAULTS.humidity_char_uuid;
+        temperatureServiceInput.value = DEFAULTS.temperature_service_uuid;
+        temperatureCharInput.value = DEFAULTS.temperature_char_uuid;
+        batteryServiceInput.value = DEFAULTS.battery_service_uuid;
+        batteryCharInput.value = DEFAULTS.battery_char_uuid;
+        scanTimeoutInput.value = DEFAULTS.scan_timeout;
+        reconnectDelayInput.value = DEFAULTS.reconnect_delay;
+        debounceSecInput.value = DEFAULTS.debounce_sec;
+        tableMaxRowsInput.value = DEFAULTS.table_max_rows;
+        tableMaxRows = DEFAULTS.table_max_rows;
+        applyTheme(DEFAULTS.theme);
+        if (window.pywebview && window.pywebview.api) {
+          await window.pywebview.api.save_config({ ...DEFAULTS });
+        }
+        setStatus("Settings reset to defaults.");
+      });
+
+      let saveTimer = null;
+
+      async function saveSettings() {
+        if (!window.pywebview || !window.pywebview.api) {
+          return;
+        }
+        const payload = getSettingsPayload();
+        const result = await window.pywebview.api.save_config(payload);
+        if (result && result.ok) {
+          applyTheme(themeSelect.value);
+          tableMaxRows = payload.table_max_rows || tableMaxRows;
+          setStatus("Settings saved.");
+        }
+      }
+
+      function scheduleSaveSettings() {
+        if (saveTimer) {
+          clearTimeout(saveTimer);
+        }
+        saveTimer = setTimeout(saveSettings, 400);
+      }
+
+      [
+        deviceNameInput,
+        themeSelect,
+        humidityServiceInput,
+        humidityCharInput,
+        temperatureServiceInput,
+        temperatureCharInput,
+        batteryServiceInput,
+        batteryCharInput,
+        scanTimeoutInput,
+        reconnectDelayInput,
+        debounceSecInput,
+        tableMaxRowsInput,
+      ].forEach((el) => {
+        el.addEventListener("input", scheduleSaveSettings);
+        el.addEventListener("change", scheduleSaveSettings);
+      });
+
+      function resetDevicesList() {
+        devicesBody.innerHTML = "";
+      }
+
+      function getSettingsPayload() {
+        return {
+          device_name: deviceNameInput.value.trim(),
+          theme: themeSelect.value,
+          humidity_service_uuid: humidityServiceInput.value.trim(),
+          humidity_char_uuid: humidityCharInput.value.trim(),
+          temperature_service_uuid: temperatureServiceInput.value.trim(),
+          temperature_char_uuid: temperatureCharInput.value.trim(),
+          battery_service_uuid: batteryServiceInput.value.trim(),
+          battery_char_uuid: batteryCharInput.value.trim(),
+          scan_timeout: parseFloat(scanTimeoutInput.value),
+          reconnect_delay: parseFloat(reconnectDelayInput.value),
+          debounce_sec: parseFloat(debounceSecInput.value),
+          table_max_rows: parseInt(tableMaxRowsInput.value, 10),
+        };
+      }
+
+      function renderDevices(devices) {
+        resetDevicesList();
+        if (!devices || devices.length === 0) {
+          devicesHint.textContent = "No named BLE devices found.";
+          return;
+        }
+        devicesHint.textContent = `Found ${devices.length} device${
+          devices.length === 1 ? "" : "s"
+        }.`;
+        for (const device of devices) {
+          const row = document.createElement("tr");
+          const nameCell = document.createElement("td");
+          nameCell.textContent = device.name;
+          const addressCell = document.createElement("td");
+          addressCell.textContent = device.address || "--";
+          const actionCell = document.createElement("td");
+          const useBtn = document.createElement("button");
+          useBtn.className = "btn secondary small";
+          useBtn.textContent = "Use";
+          useBtn.addEventListener("click", async () => {
+            if (!window.pywebview || !window.pywebview.api) {
+              return;
+            }
+            useBtn.disabled = true;
+            setStatus("Checking device compatibility...");
+            try {
+              const result = await window.pywebview.api.verify_device(
+                device.address || ""
+              );
+              if (result && result.compatible) {
+                deviceNameInput.value = device.name;
+                const payload = getSettingsPayload();
+                const saveResult = await window.pywebview.api.save_config(
+                  payload
+                );
+                if (saveResult && saveResult.ok) {
+                  applyTheme(themeSelect.value);
+                  tableMaxRows = payload.table_max_rows || tableMaxRows;
+                  setStatus("Settings saved. Connecting...");
+                  window.pywebview.api.toggle_connect();
+                } else {
+                  setStatus("Failed to save settings.");
+                }
+              } else {
+                setStatus(result?.message || "Device not compatible.");
+              }
+            } finally {
+              useBtn.disabled = false;
+            }
+          });
+          actionCell.appendChild(useBtn);
+          row.appendChild(nameCell);
+          row.appendChild(addressCell);
+          row.appendChild(actionCell);
+          devicesBody.appendChild(row);
+        }
+      }
+
+      function setScanState(scanning) {
+        isScanning = scanning;
+        scanBtn.textContent = scanning ? "Stop Scan" : "Scan for Devices";
+        if (scanning) {
+          devicesHint.textContent = "Scanning...";
+        }
+      }
+
+      function updateDeviceList(devices) {
+        renderDevices(devices);
+        if (isScanning && devices && devices.length > 0) {
+          devicesHint.textContent = "Scanning...";
+        }
+      }
+
+      scanBtn.addEventListener("click", async () => {
+        if (!window.pywebview || !window.pywebview.api) {
+          return;
+        }
+        scanBtn.disabled = true;
+        try {
+          if (isScanning) {
+            await window.pywebview.api.stop_scan();
+            setScanState(false);
+            if (!devicesBody.children.length) {
+              devicesHint.textContent = "Scan stopped.";
+            }
+          } else {
+            resetDevicesList();
+            const result = await window.pywebview.api.start_scan();
+            if (result && result.ok) {
+              setScanState(true);
+            } else {
+              devicesHint.textContent = result?.message || "Scan failed.";
+            }
+          }
+        } finally {
+          scanBtn.disabled = false;
+        }
+      });
+
+      function applyTheme(theme) {
+        const root = document.documentElement;
+        if (theme === "slate") {
+          root.style.setProperty("--bg", "#12151d");
+          root.style.setProperty("--panel", "#1a1f2c");
+          root.style.setProperty("--panel-2", "#141922");
+          root.style.setProperty("--accent", "#7aa2ff");
+          root.style.setProperty("--muted", "#9aa7b5");
+          root.style.setProperty("--text", "#e6eef7");
+          root.style.setProperty("--border", "rgba(255, 255, 255, 0.08)");
+          root.style.setProperty("--accent-soft", "rgba(122, 162, 255, 0.16)");
+          root.style.setProperty("--accent-soft-2", "rgba(122, 162, 255, 0.1)");
+          root.style.setProperty(
+            "--accent-border",
+            "rgba(122, 162, 255, 0.35)"
+          );
+          root.style.setProperty(
+            "--accent-border-strong",
+            "rgba(122, 162, 255, 0.6)"
+          );
+        } else if (theme === "ember") {
+          root.style.setProperty("--bg", "#141011");
+          root.style.setProperty("--panel", "#1f1616");
+          root.style.setProperty("--panel-2", "#171112");
+          root.style.setProperty("--accent", "#ff8a5b");
+          root.style.setProperty("--muted", "#b8a39a");
+          root.style.setProperty("--text", "#f1e6df");
+          root.style.setProperty("--border", "rgba(255, 255, 255, 0.08)");
+          root.style.setProperty("--accent-soft", "rgba(255, 138, 91, 0.16)");
+          root.style.setProperty("--accent-soft-2", "rgba(255, 138, 91, 0.1)");
+          root.style.setProperty("--accent-border", "rgba(255, 138, 91, 0.35)");
+          root.style.setProperty(
+            "--accent-border-strong",
+            "rgba(255, 138, 91, 0.6)"
+          );
+        } else if (theme === "dark") {
+          root.style.setProperty("--bg", "#121212");
+          root.style.setProperty("--panel", "#1b1b1b");
+          root.style.setProperty("--panel-2", "#161616");
+          root.style.setProperty("--accent", "#6fd3a6");
+          root.style.setProperty("--muted", "#a2a2a2");
+          root.style.setProperty("--text", "#f0f0f0");
+          root.style.setProperty("--border", "rgba(255, 255, 255, 0.08)");
+          root.style.setProperty("--accent-soft", "rgba(111, 211, 166, 0.16)");
+          root.style.setProperty("--accent-soft-2", "rgba(111, 211, 166, 0.1)");
+          root.style.setProperty(
+            "--accent-border",
+            "rgba(111, 211, 166, 0.35)"
+          );
+          root.style.setProperty(
+            "--accent-border-strong",
+            "rgba(111, 211, 166, 0.6)"
+          );
+        } else if (theme === "light") {
+          root.style.setProperty("--bg", "#edf1f6");
+          root.style.setProperty("--panel", "#f7f8fb");
+          root.style.setProperty("--panel-2", "#e4e9f1");
+          root.style.setProperty("--accent", "#c0733b");
+          root.style.setProperty("--muted", "#5f6f80");
+          root.style.setProperty("--text", "#1a222c");
+          root.style.setProperty("--border", "rgba(15, 23, 42, 0.14)");
+          root.style.setProperty("--accent-soft", "rgba(192, 115, 59, 0.14)");
+          root.style.setProperty("--accent-soft-2", "rgba(192, 115, 59, 0.08)");
+          root.style.setProperty("--accent-border", "rgba(192, 115, 59, 0.35)");
+          root.style.setProperty(
+            "--accent-border-strong",
+            "rgba(192, 115, 59, 0.6)"
+          );
+        } else {
+          root.style.setProperty("--bg", "#0e1522");
+          root.style.setProperty("--panel", "#131c2c");
+          root.style.setProperty("--panel-2", "#101827");
+          root.style.setProperty("--accent", "#4aa3ff");
+          root.style.setProperty("--muted", "#93a4ba");
+          root.style.setProperty("--text", "#e6eef7");
+          root.style.setProperty("--border", "rgba(255, 255, 255, 0.08)");
+          root.style.setProperty("--accent-soft", "rgba(74, 163, 255, 0.12)");
+          root.style.setProperty("--accent-soft-2", "rgba(74, 163, 255, 0.08)");
+          root.style.setProperty("--accent-border", "rgba(74, 163, 255, 0.35)");
+          root.style.setProperty(
+            "--accent-border-strong",
+            "rgba(74, 163, 255, 0.6)"
+          );
+        }
+      }
+
+      let configLoaded = false;
+
+      async function loadConfig(force = false) {
+        if (configLoaded && !force) {
+          return;
+        }
+        const config =
+          window.pywebview && window.pywebview.api
+            ? await window.pywebview.api.get_config()
+            : null;
+        const merged = { ...DEFAULTS, ...(config || {}) };
+        deviceNameInput.value = merged.device_name;
+        themeSelect.value = merged.theme;
+        humidityServiceInput.value = merged.humidity_service_uuid;
+        humidityCharInput.value = merged.humidity_char_uuid;
+        temperatureServiceInput.value = merged.temperature_service_uuid;
+        temperatureCharInput.value = merged.temperature_char_uuid;
+        batteryServiceInput.value = merged.battery_service_uuid;
+        batteryCharInput.value = merged.battery_char_uuid;
+        scanTimeoutInput.value = merged.scan_timeout;
+        reconnectDelayInput.value = merged.reconnect_delay;
+        debounceSecInput.value = merged.debounce_sec;
+        tableMaxRowsInput.value = merged.table_max_rows;
+        tableMaxRows = merged.table_max_rows;
+        applyTheme(merged.theme);
+        configLoaded = true;
+      }
+
+      function scheduleConfigLoad() {
+        if (configLoaded) {
+          return;
+        }
+        if (window.pywebview && window.pywebview.api) {
+          loadConfig(true);
+          return;
+        }
+        setTimeout(scheduleConfigLoad, 200);
+      }
+
+      document.addEventListener("pywebviewready", async () => {
+        setConnectionState("disconnected");
+        setAutosaveState(false);
+        setAutosavePath("");
+        scheduleConfigLoad();
+      });
+
+      document.addEventListener("DOMContentLoaded", () => {
+        scheduleConfigLoad();
+      });
+    </script>
+  </body>
+</html>
