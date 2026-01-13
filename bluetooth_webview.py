@@ -410,6 +410,11 @@ class AppAPI:
         finally:
             loop.close()
 
+    def _normalize_dialog_path(self, path):
+        if isinstance(path, (list, tuple)):
+            return path[0] if path else None
+        return path
+
 
     def save_csv(self):
         if not self._data_rows:
@@ -421,8 +426,7 @@ class AppAPI:
             save_filename="sensor_log.csv",
             file_types=("CSV files (*.csv)",),
         )
-        if isinstance(path, list):
-            path = path[0] if path else None
+        path = self._normalize_dialog_path(path)
         if not path:
             return {"ok": False, "message": "Save canceled."}
         try:
@@ -452,8 +456,7 @@ class AppAPI:
             save_filename="sensor_log.csv",
             file_types=("CSV files (*.csv)",),
         )
-        if isinstance(path, list):
-            path = path[0] if path else None
+        path = self._normalize_dialog_path(path)
         if not path:
             return {"ok": False, "message": "Autosave canceled."}
         try:
