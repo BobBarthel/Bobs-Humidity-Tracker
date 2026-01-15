@@ -273,6 +273,14 @@
         text-align: left;
       }
 
+      .device-section td {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+        background: var(--panel-2);
+      }
+
       .device-list .table-wrap {
         flex: 1;
         min-height: 0;
@@ -437,8 +445,30 @@
             <div class="settings-section">
               <div class="settings-grid">
                 <div class="field">
-                  <label for="deviceName">Device name</label>
-                  <input id="deviceName" type="text" />
+                  <label for="knownDeviceSelect">Known device</label>
+                  <select id="knownDeviceSelect"></select>
+                </div>
+                <div class="field">
+                  <label for="knownDeviceName">Device name</label>
+                  <input id="knownDeviceName" type="text" />
+                </div>
+                <div class="field">
+                  <label for="knownDeviceNickname">Nickname</label>
+                  <input id="knownDeviceNickname" type="text" />
+                </div>
+                <div class="field">
+                  <label for="knownDeviceId">Device ID</label>
+                  <input id="knownDeviceId" type="text" disabled />
+                </div>
+                <div class="field">
+                  <label for="knownDeviceAddress">Address</label>
+                  <input id="knownDeviceAddress" type="text" disabled />
+                </div>
+                <div class="field">
+                  <label>&nbsp;</label>
+                  <button class="btn secondary" id="knownDeviceForget">
+                    Forget Device
+                  </button>
                 </div>
                 <div class="field">
                   <label for="themeSelect">Theme</label>
@@ -515,6 +545,8 @@
                 <thead>
                   <tr>
                     <th>Name</th>
+                    <th>Nickname</th>
+                    <th>ID</th>
                     <th>Address</th>
                     <th></th>
                   </tr>
@@ -545,7 +577,12 @@
       const tableBody = document.getElementById("tableBody");
       const tableHint = document.getElementById("tableHint");
       const autosavePath = document.getElementById("autosavePath");
-      const deviceNameInput = document.getElementById("deviceName");
+      const knownDeviceSelect = document.getElementById("knownDeviceSelect");
+      const knownDeviceNameInput = document.getElementById("knownDeviceName");
+      const knownDeviceNicknameInput = document.getElementById("knownDeviceNickname");
+      const knownDeviceIdInput = document.getElementById("knownDeviceId");
+      const knownDeviceAddressInput = document.getElementById("knownDeviceAddress");
+      const knownDeviceForgetBtn = document.getElementById("knownDeviceForget");
       const themeSelect = document.getElementById("themeSelect");
       const humidityServiceInput = document.getElementById("humidityService");
       const temperatureServiceInput =
@@ -563,9 +600,13 @@
       const devicesBody = document.getElementById("devicesBody");
       const devicesHint = document.getElementById("devicesHint");
       let isScanning = false;
+      let lastDevicePayload = { known: [], other: [] };
+      let lastKnownDevices = [];
       let tableMaxRows = 200;
       const DEFAULTS = {
         device_name: "SHT40 Gadget",
+        device_address: "",
+        device_serial: "",
         humidity_service_uuid: "00001234-b38d-4985-720e-0f993a68ee41",
         humidity_char_uuid: "00001235-b38d-4985-720e-0f993a68ee41",
         temperature_service_uuid: "00002234-b38d-4985-720e-0f993a68ee41",
@@ -794,7 +835,6 @@
       devicesTab.addEventListener("click", () => setTab("devices"));
 
       settingsResetBtn.addEventListener("click", async () => {
-        deviceNameInput.value = DEFAULTS.device_name;
         themeSelect.value = DEFAULTS.theme;
         humidityServiceInput.value = DEFAULTS.humidity_service_uuid;
         humidityCharInput.value = DEFAULTS.humidity_char_uuid;
@@ -837,7 +877,6 @@
       }
 
       [
-        deviceNameInput,
         themeSelect,
         humidityServiceInput,
         humidityCharInput,
@@ -860,7 +899,6 @@
 
       function getSettingsPayload() {
         return {
-          device_name: deviceNameInput.value.trim(),
           theme: themeSelect.value,
           humidity_service_uuid: humidityServiceInput.value.trim(),
           humidity_char_uuid: humidityCharInput.value.trim(),
@@ -875,61 +913,166 @@
         };
       }
 
-      function renderDevices(devices) {
+      function renderDevices(payload) {
         resetDevicesList();
-        if (!devices || devices.length === 0) {
-          devicesHint.textContent = "No named BLE devices found.";
-          return;
+        const known = payload?.known || [];
+        const other = payload?.other || [];
+          const compatible = [];
+          const unverified = [];
+          for (const device of other) {
+            if (device.serial && device.compatible) {
+              compatible.push(device);
+            } else {
+              unverified.push(device);
+            }
+          }
+          const total = known.length + compatible.length + unverified.length;
+          if (!total) {
+            devicesHint.textContent = "No named BLE devices found.";
+            return;
+          }
+          devicesHint.textContent = `Found ${total} device${total === 1 ? "" : "s"}.`;
+
+        function addSection(label) {
+          const row = document.createElement("tr");
+          row.className = "device-section";
+          const cell = document.createElement("td");
+          cell.colSpan = 5;
+          cell.textContent = label;
+          row.appendChild(cell);
+          devicesBody.appendChild(row);
         }
-        devicesHint.textContent = `Found ${devices.length} device${
-          devices.length === 1 ? "" : "s"
-        }.`;
-        for (const device of devices) {
+
+        function addDeviceRow(device, isKnown, allowUse) {
           const row = document.createElement("tr");
           const nameCell = document.createElement("td");
-          nameCell.textContent = device.name;
+          nameCell.textContent = device.name || "--";
+          const nicknameCell = document.createElement("td");
+          if (isKnown) {
+            const nicknameInput = document.createElement("input");
+            nicknameInput.type = "text";
+            nicknameInput.placeholder = "Nickname";
+            nicknameInput.value = device.nickname || "";
+            nicknameInput.addEventListener("change", async () => {
+              if (!window.pywebview || !window.pywebview.api) {
+                return;
+              }
+              await window.pywebview.api.set_device_nickname(
+                device.id || "",
+                nicknameInput.value.trim()
+              );
+            });
+            nicknameCell.appendChild(nicknameInput);
+          } else {
+            nicknameCell.textContent = "--";
+          }
+          const idCell = document.createElement("td");
+          idCell.textContent = device.serial || "--";
           const addressCell = document.createElement("td");
           addressCell.textContent = device.address || "--";
           const actionCell = document.createElement("td");
-          const useBtn = document.createElement("button");
-          useBtn.className = "btn secondary small";
-          useBtn.textContent = "Use";
-          useBtn.addEventListener("click", async () => {
-            if (!window.pywebview || !window.pywebview.api) {
-              return;
-            }
-            useBtn.disabled = true;
-            setStatus("Checking device compatibility...");
-            try {
-              const result = await window.pywebview.api.verify_device(
-                device.address || ""
-              );
-              if (result && result.compatible) {
-                deviceNameInput.value = device.name;
-                const payload = getSettingsPayload();
-                const saveResult = await window.pywebview.api.save_config(
-                  payload
-                );
-                if (saveResult && saveResult.ok) {
-                  applyTheme(themeSelect.value);
-                  tableMaxRows = payload.table_max_rows || tableMaxRows;
-                  setStatus("Settings saved. Connecting...");
-                  window.pywebview.api.toggle_connect();
-                } else {
-                  setStatus("Failed to save settings.");
-                }
-              } else {
-                setStatus(result?.message || "Device not compatible.");
+          if (allowUse) {
+            const useBtn = document.createElement("button");
+            useBtn.className = "btn secondary small";
+            useBtn.textContent = "Use";
+            useBtn.addEventListener("click", async () => {
+              if (!window.pywebview || !window.pywebview.api) {
+                return;
               }
-            } finally {
-              useBtn.disabled = false;
-            }
-          });
-          actionCell.appendChild(useBtn);
+              useBtn.disabled = true;
+              try {
+                const serialValue = device.serial || "";
+                if (!serialValue) {
+                  setStatus("Device not ready yet. Wait for identity scan.");
+                  return;
+                }
+                knownDeviceNameInput.value = device.name;
+                const selectResult = await window.pywebview.api.select_device({
+                  name: device.name,
+                  address: device.address || "",
+                  serial: serialValue,
+                });
+                if (selectResult && selectResult.ok) {
+                  const payload = getSettingsPayload();
+                  const saveResult = await window.pywebview.api.save_config(
+                    payload
+                  );
+                  if (saveResult && saveResult.ok) {
+                    applyTheme(themeSelect.value);
+                    tableMaxRows = payload.table_max_rows || tableMaxRows;
+                    promoteToKnown(device);
+                    if (window.pywebview && window.pywebview.api) {
+                      const config = await window.pywebview.api.get_config();
+                      updateKnownDeviceOptions(config?.known_devices || []);
+                    }
+                    setStatus("Settings saved. Connecting...");
+                    window.pywebview.api.toggle_connect();
+                  } else {
+                    setStatus("Failed to save settings.");
+                  }
+                } else {
+                  setStatus(selectResult?.message || "Selection failed.");
+                }
+              } finally {
+                useBtn.disabled = false;
+              }
+            });
+            actionCell.appendChild(useBtn);
+          }
+
+          if (isKnown) {
+            const forgetBtn = document.createElement("button");
+            forgetBtn.className = "btn small";
+            forgetBtn.textContent = "Forget";
+            forgetBtn.addEventListener("click", async () => {
+              if (!window.pywebview || !window.pywebview.api) {
+                return;
+              }
+              forgetBtn.disabled = true;
+              try {
+                const result = await window.pywebview.api.forget_device(
+                  device.id || ""
+                );
+                if (result && result.ok) {
+                  row.remove();
+                  setStatus("Device forgotten.");
+                } else {
+                  setStatus(result?.message || "Unable to forget device.");
+                }
+              } finally {
+                forgetBtn.disabled = false;
+              }
+            });
+            actionCell.appendChild(forgetBtn);
+          }
+
           row.appendChild(nameCell);
+          row.appendChild(nicknameCell);
+          row.appendChild(idCell);
           row.appendChild(addressCell);
           row.appendChild(actionCell);
           devicesBody.appendChild(row);
+        }
+
+        if (known.length) {
+          addSection("Known devices (found)");
+          for (const device of known) {
+            addDeviceRow(device, true, true);
+          }
+        }
+
+        if (compatible.length) {
+          addSection("Unknown compatible devices");
+          for (const device of compatible) {
+            addDeviceRow(device, false, true);
+          }
+        }
+
+        if (unverified.length) {
+          addSection("Nearby devices");
+          for (const device of unverified) {
+            addDeviceRow(device, false, false);
+          }
         }
       }
 
@@ -942,10 +1085,176 @@
       }
 
       function updateDeviceList(devices) {
+        lastDevicePayload = devices || { known: [], other: [] };
         renderDevices(devices);
-        if (isScanning && devices && devices.length > 0) {
+        if (isScanning && devices && (devices.known?.length || devices.other?.length)) {
           devicesHint.textContent = "Scanning...";
         }
+      }
+
+      function updateKnownDeviceOptions(devices) {
+        const list = Array.isArray(devices) ? devices : [];
+        lastKnownDevices = [...list];
+        knownDeviceSelect.innerHTML = "";
+        if (!list.length) {
+          const option = document.createElement("option");
+          option.value = "";
+          option.textContent = "No known devices yet";
+          knownDeviceSelect.appendChild(option);
+          knownDeviceNameInput.value = "";
+          knownDeviceNicknameInput.value = "";
+          knownDeviceIdInput.value = "";
+          knownDeviceAddressInput.value = "";
+          return;
+        }
+        const currentSelection = knownDeviceSelect.value;
+        list.sort((a, b) => {
+          const aLabel = (a.nickname || a.name || "").toLowerCase();
+          const bLabel = (b.nickname || b.name || "").toLowerCase();
+          return aLabel.localeCompare(bLabel);
+        });
+        list.forEach((device) => {
+          const option = document.createElement("option");
+          option.value = device.serial || device.address || "";
+          const label = device.nickname || device.name || "Unnamed device";
+          const suffix = device.serial
+            ? ` (${device.serial})`
+            : device.address
+            ? ` (${device.address})`
+            : "";
+          option.textContent = `${label}${suffix}`;
+          knownDeviceSelect.appendChild(option);
+        });
+        if (currentSelection) {
+          knownDeviceSelect.value = currentSelection;
+        }
+        if (!knownDeviceSelect.value && knownDeviceSelect.options.length) {
+          knownDeviceSelect.selectedIndex = 0;
+        }
+        const selectedId = knownDeviceSelect.value;
+        const match =
+          list.find((device) => (device.serial || device.address || "") === selectedId) ||
+          list[0];
+        updateKnownDeviceFields(match);
+      }
+
+      function updateKnownDeviceFields(device) {
+        if (!device) {
+          knownDeviceNameInput.value = "";
+          knownDeviceNicknameInput.value = "";
+          knownDeviceIdInput.value = "";
+          knownDeviceAddressInput.value = "";
+          return;
+        }
+        knownDeviceNameInput.value = device.name || "";
+        knownDeviceNicknameInput.value = device.nickname || "";
+        knownDeviceIdInput.value = device.serial || "";
+        knownDeviceAddressInput.value = device.address || "";
+      }
+
+      knownDeviceSelect.addEventListener("change", async () => {
+        if (!window.pywebview || !window.pywebview.api) {
+          return;
+        }
+        const identifier = knownDeviceSelect.value;
+        const selected = (lastKnownDevices || []).find(
+          (device) => (device.serial || device.address || "") === identifier
+        );
+        updateKnownDeviceFields(selected);
+        if (selected) {
+          await window.pywebview.api.select_device({
+            name: selected.name,
+            address: selected.address || "",
+            serial: selected.serial || "",
+          });
+        }
+      });
+
+      [knownDeviceNameInput, knownDeviceNicknameInput].forEach((el) => {
+        el.addEventListener("change", async () => {
+          if (!window.pywebview || !window.pywebview.api) {
+            return;
+          }
+          const identifier = knownDeviceSelect.value;
+          if (!identifier) {
+            return;
+          }
+          const result = await window.pywebview.api.update_known_device(
+            identifier,
+            {
+              name: knownDeviceNameInput.value.trim(),
+              nickname: knownDeviceNicknameInput.value.trim(),
+            }
+          );
+          if (result && result.ok) {
+            updateKnownDeviceOptions(result.devices || []);
+            setStatus("Device updated.");
+          }
+        });
+      });
+
+      knownDeviceForgetBtn.addEventListener("click", async () => {
+        if (!window.pywebview || !window.pywebview.api) {
+          return;
+        }
+        const identifier = knownDeviceSelect.value;
+        if (!identifier) {
+          return;
+        }
+        const result = await window.pywebview.api.forget_device(identifier);
+        if (result && result.ok) {
+          updateKnownDeviceOptions(result.devices || []);
+          setStatus("Device forgotten.");
+        } else {
+          setStatus(result?.message || "Unable to forget device.");
+        }
+      });
+
+      function promoteToKnown(device) {
+        const serial = device.serial || "";
+        if (!serial) {
+          return;
+        }
+        const known = Array.isArray(lastDevicePayload.known)
+          ? [...lastDevicePayload.known]
+          : [];
+        const other = Array.isArray(lastDevicePayload.other)
+          ? [...lastDevicePayload.other]
+          : [];
+        const index = other.findIndex((item) => item.serial === serial);
+        if (index >= 0) {
+          other.splice(index, 1);
+        }
+        let existing = known.find((item) => item.serial === serial);
+        if (!existing) {
+          existing = { ...device, known: true };
+          if (!existing.nickname) {
+            existing.nickname = generateNickname(device.name, known);
+          }
+          known.unshift(existing);
+        }
+        lastDevicePayload = { known, other };
+        renderDevices(lastDevicePayload);
+      }
+
+      function generateNickname(name, knownList) {
+        const base = (name || "Device").trim() || "Device";
+        const prefix = `${base} #`;
+        const used = new Set();
+        for (const device of knownList || []) {
+          const nickname = (device.nickname || "").trim();
+          if (nickname.startsWith(prefix)) {
+            const suffix = nickname.slice(prefix.length);
+            if (/^\d+$/.test(suffix)) {
+              used.add(parseInt(suffix, 10));
+            }
+          }
+        }
+        let index = 1;
+        while (used.has(index)) {
+          index += 1;
+        }
+        return `${prefix}${index}`;
       }
 
       scanBtn.addEventListener("click", async () => {
@@ -1071,7 +1380,6 @@
             ? await window.pywebview.api.get_config()
             : null;
         const merged = { ...DEFAULTS, ...(config || {}) };
-        deviceNameInput.value = merged.device_name;
         themeSelect.value = merged.theme;
         humidityServiceInput.value = merged.humidity_service_uuid;
         humidityCharInput.value = merged.humidity_char_uuid;
@@ -1085,6 +1393,7 @@
         tableMaxRowsInput.value = merged.table_max_rows;
         tableMaxRows = merged.table_max_rows;
         applyTheme(merged.theme);
+        updateKnownDeviceOptions(merged.known_devices || []);
         configLoaded = true;
       }
 
